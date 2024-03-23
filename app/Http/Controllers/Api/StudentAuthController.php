@@ -1,37 +1,68 @@
 <?php
 
-namespace App\Http\Controllers\api;
-use App\Models\Student;
-use Illuminate\Support\Facades\Hash;
+namespace App\Http\Controllers\Api;
+
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Validator;
+use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class StudentAuthController extends Controller
 {
 
     // Login
-    public function login(Request $request) {
+    public function login(Request $request)
+    {
         // Validate the incoming request
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
         ]);
 
-        // Attempt to authenticate the user
-        if (auth()->attempt($request->only('email', 'password'))) {
-            $user = auth()->user();
-            return response()->json(['message' => 'Login successful', 'user' => $user], 200);
+        // Attempt to authenticate the student
+        $credentials = $request->only('email', 'password');
+        $student = Student::where('email', $credentials['email'])->first();
+
+        // if (!$student || !Hash::check($credentials['password'], $student->password)) {
+        //     throw ValidationException::withMessages([
+        //         'email' => ['The provided credentials are incorrect.'],
+        //         'password' => ['The provided credentials are incorrect.']
+        //     ]);
+        // }
+
+        if(!Hash::check($credentials['password'], $student->password)) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Incorrect password!'
+            ], 401);
         }
 
-        // Authentication failed
-        return response()->json(['message' => 'Invalid credentials'], 401);
+        if (!$student || $credentials['email'] !== $student->email) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Incorrect Email!'
+            ], 401);
+        }
+
+        // if(!$student) {
+        //     return response()->json([
+        //         'status' => 404,
+        //         'message' => 'No such student found!'
+        //     ], 404);
+        // }
+
+        // Authentication successful
+        Auth::login($student);
+        return response()->json(['message' => 'Login successful', 'user' => $student], 200);
     }
 
     // Create new Student
-    public function register (Request $request) {
-         // Validate the incoming request
-         $validator = Validator::make($request->all(), [
+    public function register(Request $request)
+    {
+        // Validate the incoming request
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string',
             'email' => 'required|email|unique:students,email',
             'phone' => 'required|string|unique:students,phone',
